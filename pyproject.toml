@@ -1,0 +1,14 @@
+[project]
+name = "audio-speed"
+description = "This node pack is designed to adjust audio playback speed within ComfyUI, particularly to sync audio with models like FantasyTalking (WAN) that require specific frame rates. It can also be used for general-purpose audio speed control."
+version = "1.0.0"
+license = {file = "LICENSE"}
+
+[project.urls]
+Repository = "https://github.com/ptmaster/comfyui-audio-speed"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "comfyui-audio-speed"
+Icon = ""
