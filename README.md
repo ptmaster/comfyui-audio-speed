@@ -21,3 +21,4 @@ This demonstrates a classic configuration scenario where processing 107 frames o
 
 
 The proposed frame_info output facilitates precise extraction of the audio file's frame count, which is algorithmically employed to dynamically configure the frame parameters of the video rendering model, thereby establishing an intuitive and computationally efficient workflow framework.
+To validate intermediate results, users may invoke modular nodes labeled Preview Arbitrary or Display Anything to iteratively visualize frame alignment metadata, enabling real-time verification of audiovisual coherence and parameter optimization.
