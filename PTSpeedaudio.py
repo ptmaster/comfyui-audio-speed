@@ -1,8 +1,9 @@
 import torch
 import torchaudio
 from torchaudio.transforms import Resample
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, Optional
 
+# ==================== 音频变速节点 ====================
 class PTAudioSpeed:
     @classmethod
     def INPUT_TYPES(s):
@@ -60,10 +61,64 @@ class PTAudioSpeed:
             f"帧率: {frame_rate} FPS | 速度因子: {speed_factor}x"
         )
 
+# ==================== 48kHz采样率转换节点 ====================
+class PT48KHZ:
+    def __init__(self):
+        self.resampler = None
+    
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "audio": ("AUDIO",),
+            }
+        }
+    
+    RETURN_TYPES = ("AUDIO",)
+    RETURN_NAMES = ("audio",)
+    FUNCTION = "convert_audio"
+    CATEGORY = "audio/processing"
+    OUTPUT_NODE = True
+
+    def convert_audio(self, audio: Dict) -> Tuple[Dict]:
+        waveform, sample_rate = self._get_waveform_and_rate(audio)
+        
+        # 检查是否需要重采样
+        if sample_rate == 48000:
+            return (self._build_output_audio(waveform, sample_rate),)
+            
+        # 初始化重采样器（按需创建）
+        if self.resampler is None or self.resampler.orig_freq != sample_rate:
+            self.resampler = Resample(
+                orig_freq=sample_rate,
+                new_freq=48000
+            )
+        
+        # 执行重采样
+        resampled_wave = self.resampler(waveform)
+        
+        return (self._build_output_audio(resampled_wave, 48000),)
+    
+    def _get_waveform_and_rate(self, audio: Dict) -> Tuple[torch.Tensor, int]:
+        if "waveform" in audio:
+            wf = audio["waveform"]
+            sr = audio.get("sample_rate", audio.get("samplerate", 44100))
+            return wf.unsqueeze(0) if wf.dim() == 1 else wf, sr
+        raise ValueError("输入音频需包含 waveform 字段")
+    
+    def _build_output_audio(self, waveform: torch.Tensor, sample_rate: int) -> Dict:
+        return {
+            "waveform": waveform,
+            "sample_rate": sample_rate
+        }
+
+# ==================== 节点映射 ====================
 NODE_CLASS_MAPPINGS = {
-    "PTAudioSpeed": PTAudioSpeed
+    "PTAudioSpeed": PTAudioSpeed,
+    "PT48KHZ": PT48KHZ
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "PTAudioSpeed": "PT Audio Speed"
+    "PTAudioSpeed": "PT Audio Speed",
+    "PT48KHZ": "PT 48kHz Resampler"
 }
