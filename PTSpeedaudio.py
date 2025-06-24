@@ -3,6 +3,54 @@ import torchaudio
 from torchaudio.transforms import Resample
 from typing import Tuple, Dict, Any, Optional
 
+# ==================== 音频通道统一节点 ====================
+class PTEnsureStereo:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {
+            "required": {
+                "audio": ("AUDIO",),
+            }
+        }
+    
+    RETURN_TYPES = ("AUDIO",)
+    RETURN_NAMES = ("audio",)
+    FUNCTION = "ensure_stereo"
+    CATEGORY = "audio/processing"
+    OUTPUT_NODE = True
+
+    def ensure_stereo(self, audio: Dict) -> Tuple[Dict]:
+        waveform, sample_rate = self._get_waveform_and_rate(audio)
+        
+        # 检查通道数
+        channels = waveform.shape[1]  # 张量形状: (batch, channels, samples)
+        
+        if channels == 1:
+            # 单声道转立体声: 复制单声道通道
+            stereo_waveform = waveform.repeat(1, 2, 1)
+            return (self._build_output_audio(stereo_waveform, sample_rate, "转换为立体声"),)
+        elif channels == 2:
+            # 已经是立体声
+            return (self._build_output_audio(waveform, sample_rate, "保持立体声"),)
+        else:
+            # 处理多声道音频: 只取前两个通道
+            stereo_waveform = waveform[:, :2, :]
+            return (self._build_output_audio(stereo_waveform, sample_rate, "提取前两个通道"),)
+    
+    def _get_waveform_and_rate(self, audio: Dict) -> Tuple[torch.Tensor, int]:
+        if "waveform" in audio:
+            wf = audio["waveform"]
+            sr = audio.get("sample_rate", audio.get("samplerate", 44100))
+            return wf, sr
+        raise ValueError("输入音频需包含 waveform 字段")
+    
+    def _build_output_audio(self, waveform: torch.Tensor, sample_rate: int, conversion_info: str) -> Dict:
+        return {
+            "waveform": waveform,
+            "sample_rate": sample_rate,
+            "conversion_info": conversion_info
+        }
+
 # ==================== 音频变速节点 ====================
 class PTAudioSpeed:
     @classmethod
@@ -38,7 +86,7 @@ class PTAudioSpeed:
         if "waveform" in audio:
             wf = audio["waveform"]
             sr = audio.get("sample_rate", audio.get("samplerate", 44100))
-            return wf.unsqueeze(0) if wf.dim() == 1 else wf, sr
+            return wf, sr
         raise ValueError("输入音频需包含 waveform 字段")
     
     def _resample_audio(self, waveform: torch.Tensor, orig_sr: int, speed_factor: float) -> torch.Tensor:
@@ -85,7 +133,7 @@ class PT48KHZ:
         
         # 检查是否需要重采样
         if sample_rate == 48000:
-            return (self._build_output_audio(waveform, sample_rate),)
+            return (self._build_output_audio(waveform, sample_rate, "保持48kHz"),)
             
         # 初始化重采样器（按需创建）
         if self.resampler is None or self.resampler.orig_freq != sample_rate:
@@ -97,28 +145,31 @@ class PT48KHZ:
         # 执行重采样
         resampled_wave = self.resampler(waveform)
         
-        return (self._build_output_audio(resampled_wave, 48000),)
+        return (self._build_output_audio(resampled_wave, 48000, f"从{sample_rate}Hz转换"),)
     
     def _get_waveform_and_rate(self, audio: Dict) -> Tuple[torch.Tensor, int]:
         if "waveform" in audio:
             wf = audio["waveform"]
             sr = audio.get("sample_rate", audio.get("samplerate", 44100))
-            return wf.unsqueeze(0) if wf.dim() == 1 else wf, sr
+            return wf, sr
         raise ValueError("输入音频需包含 waveform 字段")
     
-    def _build_output_audio(self, waveform: torch.Tensor, sample_rate: int) -> Dict:
+    def _build_output_audio(self, waveform: torch.Tensor, sample_rate: int, conversion_info: str) -> Dict:
         return {
             "waveform": waveform,
-            "sample_rate": sample_rate
+            "sample_rate": sample_rate,
+            "conversion_info": conversion_info
         }
 
 # ==================== 节点映射 ====================
 NODE_CLASS_MAPPINGS = {
+    "PTEnsureStereo": PTEnsureStereo,
     "PTAudioSpeed": PTAudioSpeed,
     "PT48KHZ": PT48KHZ
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
+    "PTEnsureStereo": "PT Ensure Stereo",
     "PTAudioSpeed": "PT Audio Speed",
     "PT48KHZ": "PT 48kHz Resampler"
 }
